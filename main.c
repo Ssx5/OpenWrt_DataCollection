@@ -12,19 +12,18 @@ int main()
 
     load_config(CONFIG_FILE);
 
-  
     pthread_t *tids = publish_task_init();
    
+    pthread_t tid = publisher_watcher_init();
 
-
-
+#ifndef DEBUG
     modbus_init(&modbus_ctx);
     
     mqtt_init(&mosq);
 
-    
+#endif
 
-
+    publisher_watcher_wait(tid);
     publish_task_wait(tids);
 
     return 0;

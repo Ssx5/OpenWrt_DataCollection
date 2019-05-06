@@ -62,7 +62,7 @@ void mqtt_init(struct mosquitto **mosq)
     //mosquitto_connect_callback_set(*mosq, connect_callback);
     //mosquitto_subscribe_callback_set(*mosq, subscribe_callback);
 #ifdef DEBUG
-    mosquitto_publish_callback_set(*mosq, publish_callback);
+    //mosquitto_publish_callback_set(*mosq, publish_callback);
 #endif
     ret = mosquitto_connect(*mosq, global_config.mqtt.mqtt_addr, global_config.mqtt.mqtt_port, 600);
     if (ret != MOSQ_ERR_SUCCESS)
@@ -70,8 +70,5 @@ void mqtt_init(struct mosquitto **mosq)
         printf("connect error %d, errno: %d\n", ret, errno);
         exit(0);
     }
-#ifdef DEBUG
-    printf("mosquitto_connect(mosq, %s, %d, 600)\n", rio_cfg.mqtt_server.ip, rio_cfg.mqtt_server.port);
-#endif
 
 }

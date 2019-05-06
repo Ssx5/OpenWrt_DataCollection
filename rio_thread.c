@@ -25,6 +25,9 @@ typedef struct _publish_info
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 
+    char last[20];
+    int last_cnt;
+
 } publish_info_t;
 
 typedef struct _publish_config_t
@@ -97,6 +100,7 @@ void load_publish_file(char *path)
         }
     }
     i = 0;
+#ifdef DEBUG
     printf("(%d,%d,%d,%d,%s,%d,%d,%d)\n",
            global_publish.infos[i].signal_id,
            global_publish.infos[i].function_code,
@@ -106,6 +110,7 @@ void load_publish_file(char *path)
            global_publish.infos[i].publish_qos,
            global_publish.infos[i].publish_varied,
            global_publish.infos[i].publish_period_ms);
+#endif
 }
 
 void load_subscribe_file(char *path)
@@ -166,6 +171,15 @@ typedef struct _publisher
 
 publisher_t *global_publishers;
 
+struct timeval tm_after(struct timeval tv, int ms)
+{
+    tv.tv_usec += 1000 * ms;
+    time_t sec = tv.tv_usec / (1000 * 1000);
+    tv.tv_sec += sec;
+    tv.tv_usec %= (1000 * 1000);
+    return tv;
+}
+
 void publoisher_init()
 {
     global_publishers = (publisher_t *)malloc(sizeof(publisher_t) * global_publish.count);
@@ -180,19 +194,13 @@ void publoisher_init()
     for (int i = 0; i < global_publish.count; ++i)
     {
         global_publishers[i].publish_period_ms = global_publish.infos[i].publish_period_ms;
-
-        global_publishers[i].next_publish_time.tv_usec += global_publishers[i].publish_period_ms * 1000;
-        int sec = global_publishers[i].next_publish_time.tv_usec / (1000 * 1000);
-        global_publishers[i].next_publish_time.tv_sec += sec;
-        global_publishers[i].next_publish_time.tv_usec %= (1000 * 1000);
-
+        global_publishers[i].next_publish_time = tm_after(tv, global_publishers[i].publish_period_ms);
         global_publishers[i].cond = &global_publish.infos[i].cond;
     }
 }
 
 void publish_watcher(publisher_t *p, int n)
 {
-
     struct timeval tv;
     gettimeofday(&tv, NULL);
     for (int i = 0; i < n; ++i)
@@ -201,63 +209,82 @@ void publish_watcher(publisher_t *p, int n)
             (tv.tv_sec == p[i].next_publish_time.tv_sec && tv.tv_usec > p[i].next_publish_time.tv_usec))
         {
             pthread_cond_broadcast(p[i].cond);
-            p[i].next_publish_time.tv_usec += p[i].publish_period_ms * 1000;
-            int sec = p[i].next_publish_time.tv_usec / (1000 * 1000);
-            p[i].next_publish_time.tv_sec += sec;
-            p[i].next_publish_time.tv_usec %= (1000 * 1000);
+            p[i].next_publish_time = tm_after(tv, p[i].publish_period_ms);
         }
     }
+}
+
+void *publisher_watcher_routine(void *arg)
+{
+    while (1)
+    {
+        publish_watcher(global_publishers, global_publish.count);
+        usleep(1000 * 100);
+    }
+    return NULL;
 }
 
 void *publisher_routine(void *arg)
 {
     publish_info_t *p = (publish_info_t *)arg;
 
-    pthread_mutex_lock(&p->mutex);
-    pthread_cond_wait(&p->cond, &p->mutex);
-    pthread_mutex_unlock(&p->mutex);
-
-    int ret;
-    uint8_t bitbuf[32];
-    uint16_t regbuf[16];
-
-    switch (p->function_code)
+    while (1)
     {
-    case 1:
-        ret = modbus_read_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
-        if (ret < 0)
+        pthread_mutex_lock(&p->mutex);
+        pthread_cond_wait(&p->cond, &p->mutex);
+        pthread_mutex_unlock(&p->mutex);
+
+        int ret;
+        uint8_t bitbuf[32];
+        uint16_t regbuf[16];
+#ifndef DEBUG
+        switch (p->function_code)
         {
-            fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+        case 1:
+            ret = modbus_read_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+            }
+            mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
+            break;
+        case 2:
+            ret = modbus_read_input_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+            }
+            mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
+            break;
+        case 3:
+            ret = modbus_read_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+            }
+            mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
+            break;
+        case 4:
+            ret = modbus_read_input_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
+            if (ret < 0)
+            {
+                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+            }
+            mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
+            break;
+        default:
+            break;
         }
-        mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
-        break;
-    case 2:
-        ret = modbus_read_input_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
-        if (ret < 0)
-        {
-            fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-        }
-        mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
-        break;
-    case 3:
-        ret = modbus_read_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
-        if (ret < 0)
-        {
-            fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-        }
-        mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
-        break;
-    case 4:
-        ret = modbus_read_input_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
-        if (ret < 0)
-        {
-            fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-        }
-        mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
-        break;
-    default:
-        break;
+#endif
+
+#ifdef DEBUG   
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        printf("%lu.%.6lu", tv.tv_sec, tv.tv_usec);
+        printf("zzzz %s\n", p->publish_topic);
+#endif
     }
+
     return 0;
 }
 
@@ -287,6 +314,7 @@ pthread_t *publish_task_init()
     {
         pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]);
     }
+
     return tid;
 }
 
@@ -294,4 +322,19 @@ void publish_task_wait(pthread_t *tid)
 {
     for (int i = 0; i < global_publish.count; ++i)
         pthread_join(tid[i], NULL);
+}
+
+pthread_t publisher_watcher_init()
+{
+    pthread_t tid;
+    if (pthread_create(&tid, NULL, publisher_watcher_routine, 0) < 0)
+    {
+        printf("create thread error \n");
+        exit(0);
+    }
+}
+
+void publisher_watcher_wait(pthread_t tid)
+{
+    pthread_join(tid, 0);
 }
