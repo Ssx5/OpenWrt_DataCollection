@@ -1,9 +1,11 @@
 #ifndef __RIO_THREAD_H__
 #define __RIO_THREAD_H__
 
+#include <pthread.h>
+//void load_publish_file(char *path);
+//void load_subscribe_file(char *path);
+//void publoisher_init();
 
-void load_publish_file(char *path);
-void load_subscribe_file(char *path);
-
-
+pthread_t *publish_task_init();
+void publish_task_wait(pthread_t *tid);
 #endif

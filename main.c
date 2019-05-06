@@ -5,18 +5,18 @@
 #include "rio_thread.h"
 
 #define CONFIG_FILE "./config/remoteio"
-#define PUBLISH_CONFIG_FILE "./config/publish.cfg"
-#define SUBSCRIBE_CONFIG_FILE "./config/subscribe.cfg"
+
 
 int main()
 {
 
     load_config(CONFIG_FILE);
 
-    
-    load_publish_file(PUBLISH_CONFIG_FILE);
-    
-    load_subscribe_file(SUBSCRIBE_CONFIG_FILE);
+  
+    pthread_t *tids = publish_task_init();
+   
+
+
 
     modbus_init(&modbus_ctx);
     
@@ -25,7 +25,7 @@ int main()
     
 
 
-
+    publish_task_wait(tids);
 
     return 0;
 }

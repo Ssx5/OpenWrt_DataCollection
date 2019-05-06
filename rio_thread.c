@@ -4,11 +4,12 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "rio_thread.h"
 #include "rio_modbus.h"
 #include "rio_mqtt.h"
-
 
 typedef struct _publish_info
 {
@@ -154,49 +155,59 @@ void load_subscribe_file(char *path)
            global_subscribe.infos[i].subscribe_topic);
 }
 
-
-typedef struct _publisher{
+typedef struct _publisher
+{
 
     int publish_period_ms;
-    time_t next_publish_time;
+    struct timeval next_publish_time;
     pthread_cond_t *cond;
 
-}publisher_t;
-
+} publisher_t;
 
 publisher_t *global_publishers;
 
 void publoisher_init()
 {
     global_publishers = (publisher_t *)malloc(sizeof(publisher_t) * global_publish.count);
-    if(global_publishers == NULL)
+    if (global_publishers == NULL)
     {
         printf("malloc error\n");
         exit(0);
     }
-    time_t now = time(NULL);
-    for(int i = 0; i < global_publish.count; ++i)
+
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    for (int i = 0; i < global_publish.count; ++i)
     {
         global_publishers[i].publish_period_ms = global_publish.infos[i].publish_period_ms;
-        global_publishers[i].next_publish_time = now + global_publishers[i].publish_period_ms;
+
+        global_publishers[i].next_publish_time.tv_usec += global_publishers[i].publish_period_ms * 1000;
+        int sec = global_publishers[i].next_publish_time.tv_usec / (1000 * 1000);
+        global_publishers[i].next_publish_time.tv_sec += sec;
+        global_publishers[i].next_publish_time.tv_usec %= (1000 * 1000);
+
         global_publishers[i].cond = &global_publish.infos[i].cond;
     }
 }
 
-void publish_watcher(publisher_t* p, int n)
+void publish_watcher(publisher_t *p, int n)
 {
 
-    time_t now = time(NULL);
-    for(int i = 0; i < n; ++i)
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    for (int i = 0; i < n; ++i)
     {
-        if(now >= p[i].next_publish_time)
+        if (tv.tv_sec > p[i].next_publish_time.tv_sec ||
+            (tv.tv_sec == p[i].next_publish_time.tv_sec && tv.tv_usec > p[i].next_publish_time.tv_usec))
         {
             pthread_cond_broadcast(p[i].cond);
-            p[i].next_publish_time += p[i].publish_period_ms;
+            p[i].next_publish_time.tv_usec += p[i].publish_period_ms * 1000;
+            int sec = p[i].next_publish_time.tv_usec / (1000 * 1000);
+            p[i].next_publish_time.tv_sec += sec;
+            p[i].next_publish_time.tv_usec %= (1000 * 1000);
         }
     }
 }
-
 
 void *publisher_routine(void *arg)
 {
@@ -229,7 +240,7 @@ void *publisher_routine(void *arg)
         mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
         break;
     case 3:
-        ret = modbus_read_registers(modbus_ctx,p->start_address, p->register_count, regbuf);
+        ret = modbus_read_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
         if (ret < 0)
         {
             fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
@@ -248,4 +259,39 @@ void *publisher_routine(void *arg)
         break;
     }
     return 0;
+}
+
+#define PUBLISH_CONFIG_FILE "./config/publish.cfg"
+#define SUBSCRIBE_CONFIG_FILE "./config/subscribe.cfg"
+
+pthread_t *publish_task_init()
+{
+
+    load_publish_file(PUBLISH_CONFIG_FILE);
+
+    load_subscribe_file(SUBSCRIBE_CONFIG_FILE);
+
+    publoisher_init();
+
+    pthread_t *tid;
+
+    tid = (pthread_t *)malloc(sizeof(pthread_t) * global_publish.count);
+
+    if (tid == NULL)
+    {
+        printf("malloc error\n");
+        exit(0);
+    }
+
+    for (int i = 0; i < global_publish.count; ++i)
+    {
+        pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]);
+    }
+    return tid;
+}
+
+void publish_task_wait(pthread_t *tid)
+{
+    for (int i = 0; i < global_publish.count; ++i)
+        pthread_join(tid[i], NULL);
 }
