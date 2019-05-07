@@ -34,9 +34,6 @@ void modbus_init(modbus_t **ctx)
     }
     fprintf(stdout, "modbus_connect() success!\n");
 
-    struct timeval t;
-    t.tv_sec = 1;
-    t.tv_usec = 0;
-    modbus_set_response_timeout(*ctx, &t);
+    modbus_set_response_timeout(*ctx, 1, 0);
 
 }

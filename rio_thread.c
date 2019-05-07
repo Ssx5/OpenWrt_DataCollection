@@ -10,6 +10,7 @@
 #include "rio_thread.h"
 #include "rio_modbus.h"
 #include "rio_mqtt.h"
+#include "rio_log.h"
 
 typedef struct _publish_info
 {
@@ -55,6 +56,8 @@ subscribe_config_t global_subscribe;
 
 void load_publish_file(char *path)
 {
+    LOG("load_publish_file() start");
+
     FILE *fp = fopen(path, "r");
     if (fp == NULL)
     {
@@ -115,6 +118,8 @@ void load_publish_file(char *path)
 
 void load_subscribe_file(char *path)
 {
+    LOG("load_subscribe_file() start\n");
+
     FILE *fp = fopen(path, "r");
     if (fp == NULL)
     {
@@ -180,8 +185,10 @@ struct timeval tm_after(struct timeval tv, int ms)
     return tv;
 }
 
-void publoisher_init()
+void publisher_init()
 {
+    LOG("publisher_init()\n");
+
     global_publishers = (publisher_t *)malloc(sizeof(publisher_t) * global_publish.count);
     if (global_publishers == NULL)
     {
@@ -293,12 +300,13 @@ void *publisher_routine(void *arg)
 
 pthread_t *publish_task_init()
 {
+    LOG("publish_task_init() start\n");
 
     load_publish_file(PUBLISH_CONFIG_FILE);
 
     load_subscribe_file(SUBSCRIBE_CONFIG_FILE);
 
-    publoisher_init();
+    publisher_init();
 
     pthread_t *tid;
 

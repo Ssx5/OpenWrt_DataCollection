@@ -1,14 +1,16 @@
-#include "rio_config.h"
 #include <stdlib.h>
 #include <uci.h>
 #include <string.h>
+
+#include "rio_config.h"
+#include "rio_log.h"
 config_t global_config;
 
 
 void load_config(char *config_file)
 {
+    LOG("load_config(%s) start\n", config_file);
     struct uci_context *ctx;
-
     struct uci_package *pkg = NULL;
     struct uci_element *e;
     char *tmp;
