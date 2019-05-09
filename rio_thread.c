@@ -210,7 +210,7 @@ void publisher_init()
 
 void publish_watcher(publisher_t *p, int n)
 {
-    LOG("[INFO] publish_watcher() start");
+    LOG("[INFO] publish_watcher() start\n");
     struct timeval tv;
     gettimeofday(&tv, NULL);
     for (int i = 0; i < n; ++i)
@@ -222,7 +222,7 @@ void publish_watcher(publisher_t *p, int n)
             p[i].next_publish_time = tm_after(tv, p[i].publish_period_ms);
         }
     }
-    LOG("[INFO] publish_watcher() end");
+    LOG("[INFO] publish_watcher() end\n");
 }
 
 void *publisher_watcher_routine(void *arg)
@@ -353,6 +353,7 @@ pthread_t publisher_watcher_init()
         exit(0);
     }
     LOG("[INFO] publisher_watcher_init() end\n");
+    return tid;
 }
 
 void publisher_watcher_wait(pthread_t tid)
