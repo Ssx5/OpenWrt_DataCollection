@@ -6,7 +6,9 @@
 #include <errno.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <string.h>
 
+#include "rio_config.h"
 #include "rio_thread.h"
 #include "rio_modbus.h"
 #include "rio_mqtt.h"
@@ -208,9 +210,8 @@ void publisher_init()
     LOG("[INFO] publisher_init() end\n");
 }
 
-void publish_watcher(publisher_t *p, int n)
+void publish_scanner(publisher_t *p, int n)
 {
-    LOG("[INFO] publish_watcher() start\n");
     struct timeval tv;
     gettimeofday(&tv, NULL);
     for (int i = 0; i < n; ++i)
@@ -222,19 +223,27 @@ void publish_watcher(publisher_t *p, int n)
             p[i].next_publish_time = tm_after(tv, p[i].publish_period_ms);
         }
     }
-    LOG("[INFO] publish_watcher() end\n");
 }
 
-void *publisher_watcher_routine(void *arg)
+void *publisher_scanner_routine(void *arg)
 {
-    LOG("[INFO] publisher_watcher_routine() start\n");
+    LOG("[INFO] publisher_scanner_routine() start\n");
     while (1)
     {
-        publish_watcher(global_publishers, global_publish.count);
+        publish_scanner(global_publishers, global_publish.count);
         usleep(1000 * 100);
     }
     return NULL;
 }
+#pragma pack(1)
+typedef struct _mqtt_message_t
+{
+    u_int64_t timestamp;
+    uint8_t device_id;
+    uint8_t signal_id;
+    uint8_t payload[0];
+} mqtt_message_t;
+#pragma pack()
 
 void *publisher_routine(void *arg)
 {
@@ -247,50 +256,31 @@ void *publisher_routine(void *arg)
         pthread_cond_wait(&p->cond, &p->mutex);
         pthread_mutex_unlock(&p->mutex);
 
-        int ret;
-        uint8_t bitbuf[32];
-        uint16_t regbuf[16];
 #ifndef DEBUG
-        switch (p->function_code)
+        char buf[256];
+        int ret = modbus_read(p->function_code, p->start_address, p->register_count, buf);
+        if (p->publish_varied == 0 || p->last_cnt == 0 || p->last_cnt != ret || memcmp(p->last, buf, ret) != 0)
         {
-        case 1:
-            ret = modbus_read_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
-            if (ret < 0)
+            int size = sizeof(mqtt_message_t) + ret;
+            mqtt_message_t *msg = (mqtt_message_t *)malloc(sizeof(uint8_t) * size);
+            if (msg == 0)
             {
-                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
+                printf("malloc error \n");
+                exit(0);
             }
-            mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
-            break;
-        case 2:
-            ret = modbus_read_input_bits(modbus_ctx, p->start_address, p->register_count, bitbuf);
-            if (ret < 0)
-            {
-                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-            }
-            mosquitto_publish(mosq, NULL, p->publish_topic, ret, bitbuf, p->publish_qos, false);
-            break;
-        case 3:
-            ret = modbus_read_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
-            if (ret < 0)
-            {
-                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-            }
-            mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
-            break;
-        case 4:
-            ret = modbus_read_input_registers(modbus_ctx, p->start_address, p->register_count, regbuf);
-            if (ret < 0)
-            {
-                fprintf(stderr, "Read Failed: %s\n", modbus_strerror(errno));
-            }
-            mosquitto_publish(mosq, NULL, p->publish_topic, ret * 2, regbuf, p->publish_qos, false);
-            break;
-        default:
-            break;
+            struct timeval tv;
+            gettimeofday(&tv, 0);
+            msg->timestamp = tv.tv_sec*1000+tv.tv_usec/1000;
+            msg->device_id = global_config.deviceid;
+            msg->signal_id = p->signal_id;
+            memcpy(msg->payload, buf, ret);
+            mosquitto_publish(mosq, 0, p->publish_topic, size, msg, p->publish_qos, false);
+            p->last_cnt = ret;
+            memcpy(p->last, buf, ret);
         }
 #endif
 
-#ifdef DEBUG   
+#ifdef DEBUG
         struct timeval tv;
         gettimeofday(&tv, NULL);
         printf("%lu.%.6lu", tv.tv_sec, tv.tv_usec);
@@ -326,7 +316,7 @@ pthread_t *publish_task_init()
 
     for (int i = 0; i < global_publish.count; ++i)
     {
-        if(pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]) < 0)
+        if (pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]) < 0)
         {
             printf("create thread error \n");
             exit(0);
@@ -338,26 +328,26 @@ pthread_t *publish_task_init()
 
 void publish_task_wait(pthread_t *tid)
 {
-    LOG("[LOG] publish_task_wait() start\n");
+    LOG("[INFO] publish_task_wait() start\n");
     for (int i = 0; i < global_publish.count; ++i)
         pthread_join(tid[i], NULL);
 }
 
-pthread_t publisher_watcher_init()
+pthread_t publisher_scanner_init()
 {
-    LOG("[INFO] publisher_watcher_init() start\n");
+    LOG("[INFO] publisher_scanner_init() start\n");
     pthread_t tid;
-    if (pthread_create(&tid, NULL, publisher_watcher_routine, 0) < 0)
+    if (pthread_create(&tid, NULL, publisher_scanner_routine, 0) < 0)
     {
         printf("create thread error \n");
         exit(0);
     }
-    LOG("[INFO] publisher_watcher_init() end\n");
+    LOG("[INFO] publisher_scanner_init() end\n");
     return tid;
 }
 
-void publisher_watcher_wait(pthread_t tid)
+void publisher_scanner_wait(pthread_t tid)
 {
-    LOG("[LOG] publisher_watcher_wait() start\n");
+    LOG("[INFO] publisher_scanner_wait() start\n");
     pthread_join(tid, 0);
 }

@@ -12,19 +12,24 @@ int main()
 {
     LOG("main() start\n");
     load_config(CONFIG_FILE);
-
 #ifndef DEBUG
-    modbus_init(&modbus_ctx);
     mqtt_init(&mosq);
+    //modbus_init(&modbus_ctx);
 #endif
 
     pthread_t *tids = publish_task_init();
-    pthread_t tid = publisher_watcher_init();
+    pthread_t tid = publisher_scanner_init();
 
+    /*
+        这里可以执行任意过程
+    */
 
-
-    publisher_watcher_wait(tid);
+    publisher_scanner_wait(tid);
     publish_task_wait(tids);
+
+    /*
+        Never Run Here !
+    */
 
     return 0;
 }

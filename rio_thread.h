@@ -10,7 +10,7 @@ pthread_t *publish_task_init();
 void publish_task_wait(pthread_t *tid);
 
 
-pthread_t publisher_watcher_init();
-void publisher_watcher_wait(pthread_t tid);
+pthread_t publisher_scanner_init();
+void publisher_scanner_wait(pthread_t tid);
 
 #endif

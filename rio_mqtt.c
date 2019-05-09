@@ -5,6 +5,10 @@
 #include "rio_mqtt.h"
 #include "rio_config.h"
 
+
+#define MQTT_CERT_PATH "./config"
+#define MQTT_CERT_FILE "./config/digicert.cer"
+
 struct mosquitto *mosq;
 
 void mqtt_init(struct mosquitto **mosq)
@@ -29,6 +33,11 @@ void mqtt_init(struct mosquitto **mosq)
 
     if (global_config.mqtt.mqtt_tls_enable)
     {
+        if(global_config.mqtt.mqtt_cert_path == 0 || global_config.mqtt.mqtt_cert_file == 0)
+        {
+            global_config.mqtt.mqtt_cert_path = MQTT_CERT_PATH;
+            global_config.mqtt.mqtt_cert_file = MQTT_CERT_FILE;
+        }
         ret = mosquitto_tls_set(*mosq, global_config.mqtt.mqtt_cert_file,
                                 global_config.mqtt.mqtt_cert_path,
                                 "",
@@ -71,4 +80,10 @@ void mqtt_init(struct mosquitto **mosq)
         exit(0);
     }
 
+    int loop = mosquitto_loop_start(*mosq);
+    if(loop != MOSQ_ERR_SUCCESS)
+    {
+        printf("mosquitto loop error\n");
+        exit(0);
+    }
 }
