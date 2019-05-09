@@ -187,7 +187,7 @@ struct timeval tm_after(struct timeval tv, int ms)
 
 void publisher_init()
 {
-    LOG("publisher_init()\n");
+    LOG("[INFO] publisher_init() start\n");
 
     global_publishers = (publisher_t *)malloc(sizeof(publisher_t) * global_publish.count);
     if (global_publishers == NULL)
@@ -204,10 +204,13 @@ void publisher_init()
         global_publishers[i].next_publish_time = tm_after(tv, global_publishers[i].publish_period_ms);
         global_publishers[i].cond = &global_publish.infos[i].cond;
     }
+
+    LOG("[INFO] publisher_init() end\n");
 }
 
 void publish_watcher(publisher_t *p, int n)
 {
+    LOG("[INFO] publish_watcher() start");
     struct timeval tv;
     gettimeofday(&tv, NULL);
     for (int i = 0; i < n; ++i)
@@ -219,10 +222,12 @@ void publish_watcher(publisher_t *p, int n)
             p[i].next_publish_time = tm_after(tv, p[i].publish_period_ms);
         }
     }
+    LOG("[INFO] publish_watcher() end");
 }
 
 void *publisher_watcher_routine(void *arg)
 {
+    LOG("[INFO] publisher_watcher_routine() start\n");
     while (1)
     {
         publish_watcher(global_publishers, global_publish.count);
@@ -233,6 +238,7 @@ void *publisher_watcher_routine(void *arg)
 
 void *publisher_routine(void *arg)
 {
+    LOG("[INFO] publisher_routine() start\n");
     publish_info_t *p = (publish_info_t *)arg;
 
     while (1)
@@ -300,7 +306,7 @@ void *publisher_routine(void *arg)
 
 pthread_t *publish_task_init()
 {
-    LOG("publish_task_init() start\n");
+    LOG("[INFO] publish_task_init() start\n");
 
     load_publish_file(PUBLISH_CONFIG_FILE);
 
@@ -320,29 +326,37 @@ pthread_t *publish_task_init()
 
     for (int i = 0; i < global_publish.count; ++i)
     {
-        pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]);
+        if(pthread_create(&tid[i], NULL, publisher_routine, &global_publish.infos[i]) < 0)
+        {
+            printf("create thread error \n");
+            exit(0);
+        }
     }
-
+    LOG("[INFO] publish_task_init() end\n");
     return tid;
 }
 
 void publish_task_wait(pthread_t *tid)
 {
+    LOG("[LOG] publish_task_wait() start\n");
     for (int i = 0; i < global_publish.count; ++i)
         pthread_join(tid[i], NULL);
 }
 
 pthread_t publisher_watcher_init()
 {
+    LOG("[INFO] publisher_watcher_init() start\n");
     pthread_t tid;
     if (pthread_create(&tid, NULL, publisher_watcher_routine, 0) < 0)
     {
         printf("create thread error \n");
         exit(0);
     }
+    LOG("[INFO] publisher_watcher_init() end\n");
 }
 
 void publisher_watcher_wait(pthread_t tid)
 {
+    LOG("[LOG] publisher_watcher_wait() start\n");
     pthread_join(tid, 0);
 }
