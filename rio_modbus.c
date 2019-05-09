@@ -10,6 +10,11 @@ modbus_t *modbus_ctx;
 
 void modbus_init(modbus_t **ctx)
 {
+    printf("modbus_type: %s\n", global_config.modbus.modbus_type);
+    printf("modbus_rtu_dev: %s\n", global_config.modbus.modbus_rtu_dev);
+    printf("modbus_rtu_baudrate: %d\n", global_config.modbus.modbus_rtu_baudrate);
+    printf("modbus_rtu_slaveid: %d\n", global_config.modbus.modbus_rtu_slaveid);
+    
     if(strcmp(global_config.modbus.modbus_type, "modbus_tcp") == 0)
         *ctx = modbus_new_tcp(global_config.modbus.modbus_tcp_addr, global_config.modbus.modbus_tcp_port);
     else

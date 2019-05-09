@@ -14,7 +14,7 @@ int main()
     load_config(CONFIG_FILE);
 #ifndef DEBUG
     mqtt_init(&mosq);
-    //modbus_init(&modbus_ctx);
+    modbus_init(&modbus_ctx);
 #endif
 
     pthread_t *tids = publish_task_init();
