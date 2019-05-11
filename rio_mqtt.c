@@ -11,6 +11,21 @@
 
 struct mosquitto *mosq;
 
+
+void connect_callback(struct mosquitto *mosq, void *userdata, int result)
+{
+    if (!result)
+    {
+        fprintf(stdout, "Connect success!\n");
+    }
+    else
+    {
+        fprintf(stderr, "Connect failed: %d\n", errno);
+        exit(0);
+    }
+}
+
+
 void mqtt_init(struct mosquitto **mosq)
 {
     int ret;
@@ -28,7 +43,8 @@ void mqtt_init(struct mosquitto **mosq)
         exit(0);
     }
 
-    if (strlen(global_config.mqtt.mqtt_username) > 0 || strlen(global_config.mqtt.mqtt_password) > 0)
+    if (global_config.mqtt.mqtt_username && global_config.mqtt.mqtt_password
+    &&(strlen(global_config.mqtt.mqtt_username) > 0 || strlen(global_config.mqtt.mqtt_password) > 0))
         mosquitto_username_pw_set(*mosq, global_config.mqtt.mqtt_username, global_config.mqtt.mqtt_password);
 
     if (global_config.mqtt.mqtt_tls_enable)
@@ -40,13 +56,14 @@ void mqtt_init(struct mosquitto **mosq)
         }
         ret = mosquitto_tls_set(*mosq, global_config.mqtt.mqtt_cert_file,
                                 global_config.mqtt.mqtt_cert_path,
-                                "",
-                                "",
+                                NULL,
+                                NULL,
                                 NULL);
 
         if (ret != MOSQ_ERR_SUCCESS)
         {
-            fprintf(stderr, "mosquitto_tls_set() error: %d\n", ret);
+            fprintf(stderr, "mosquitto_tls_set() error: %d, file: %s, path: %s\n", ret,
+                global_config.mqtt.mqtt_cert_file, global_config.mqtt.mqtt_cert_path);
             exit(0);
         }
 
@@ -65,14 +82,14 @@ void mqtt_init(struct mosquitto **mosq)
         }
     }
     //mosquitto_message_callback_set(*mosq, message_callback);
-    //mosquitto_connect_callback_set(*mosq, connect_callback);
+    mosquitto_connect_callback_set(*mosq, connect_callback);
     //mosquitto_subscribe_callback_set(*mosq, subscribe_callback);
     //mosquitto_publish_callback_set(*mosq, publish_callback);
 
     ret = mosquitto_connect(*mosq, global_config.mqtt.mqtt_addr, global_config.mqtt.mqtt_port, 600);
     if (ret != MOSQ_ERR_SUCCESS)
     {
-        printf("connect error %d, errno: %d\n", ret, errno);
+        printf("mosquitto_connect %s:%s error %d, errno: %d\n",global_config.mqtt.mqtt_addr,global_config.mqtt.mqtt_port, ret, errno);
         exit(0);
     }
 

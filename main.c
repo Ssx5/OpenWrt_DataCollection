@@ -5,7 +5,7 @@
 #include "rio_thread.h"
 #include "rio_log.h"
 
-#define CONFIG_FILE "/etc/config/remoteio"
+#define CONFIG_FILE "./config/remoteio"
 
 
 int main()
@@ -13,7 +13,9 @@ int main()
     LOG("main() start\n");
     load_config(CONFIG_FILE);
     mqtt_init(&mosq);
+#ifndef DEBUG
     modbus_init(&modbus_ctx);
+#endif
     pthread_t *tids = publish_task_init();
     pthread_t tid = publisher_scanner_init();
 

@@ -263,8 +263,9 @@ void *publisher_routine(void *arg)
             msg->device_id = global_config.deviceid;
             msg->signal_id = p->signal_id;
             memcpy(msg->payload, buf, ret);
-            mosquitto_publish(mosq, 0, p->publish_topic, size, msg, p->publish_qos, false);
-          
+            int res = mosquitto_publish(mosq, 0, p->publish_topic, size, msg, p->publish_qos, false);
+            LOG("topic: %s, size: %d, res: %d\n", p->publish_topic, size, res);
+            free(msg);
             p->last_cnt = ret;
             memcpy(p->last, buf, ret);
         }
