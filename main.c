@@ -5,7 +5,7 @@
 #include "rio_thread.h"
 #include "rio_log.h"
 
-#define CONFIG_FILE "./config/remoteio"
+#define CONFIG_FILE "/etc/config/remoteio"
 
 
 int main()

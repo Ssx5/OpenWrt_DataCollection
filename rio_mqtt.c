@@ -16,7 +16,7 @@ void connect_callback(struct mosquitto *mosq, void *userdata, int result)
 {
     if (!result)
     {
-        fprintf(stdout, "Connect success!\n");
+	printf("mosquitto_connect success %s:%d\n",global_config.mqtt.mqtt_addr,global_config.mqtt.mqtt_port);
     }
     else
     {
