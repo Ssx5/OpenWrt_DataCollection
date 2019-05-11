@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "rio_modbus.h"
 #include "rio_config.h"
@@ -43,6 +44,19 @@ void modbus_init(modbus_t **ctx)
 }
 
 
+#if define DEBUG
+int modbus_read(int function_code, int start_address, int register_count, char* buf)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    printf("%d.%.6dfunction_code: %d, start_address: %d, register_count:%d", tv.tv_sec, tv.tv_usec,
+        function_code, start_address, register_count);
+    char recv[] = {1,2,3,4,5}
+    memcpy(buf, recv, sizeof(recv));
+    usleep(50 * 1000);
+    return sizeof(recv);
+}
+#else
 int modbus_read(int function_code, int start_address, int register_count, char* buf)
 {
     
@@ -108,3 +122,7 @@ int modbus_read(int function_code, int start_address, int register_count, char* 
         return ret;
     }
 }
+
+#endif
+
+

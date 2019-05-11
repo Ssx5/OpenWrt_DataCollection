@@ -5,31 +5,25 @@
 #include "rio_thread.h"
 #include "rio_log.h"
 
-#define CONFIG_FILE "./config/remoteio"
+#define CONFIG_FILE "/etc/config/remoteio"
 
 
 int main()
 {
     LOG("main() start\n");
     load_config(CONFIG_FILE);
-#ifndef DEBUG
     mqtt_init(&mosq);
     modbus_init(&modbus_ctx);
-#endif
-
     pthread_t *tids = publish_task_init();
     pthread_t tid = publisher_scanner_init();
 
     /*
         这里可以执行任意过程
     */
-
     publisher_scanner_wait(tid);
     publish_task_wait(tids);
-
     /*
         Never Run Here !
     */
-
     return 0;
 }

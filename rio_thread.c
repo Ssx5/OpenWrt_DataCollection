@@ -104,18 +104,7 @@ void load_publish_file(char *path)
             i++;
         }
     }
-    i = 0;
-#ifdef DEBUG
-    printf("(%d,%d,%d,%d,%s,%d,%d,%d)\n",
-           global_publish.infos[i].signal_id,
-           global_publish.infos[i].function_code,
-           global_publish.infos[i].start_address,
-           global_publish.infos[i].register_count,
-           global_publish.infos[i].publish_topic,
-           global_publish.infos[i].publish_qos,
-           global_publish.infos[i].publish_varied,
-           global_publish.infos[i].publish_period_ms);
-#endif
+
 }
 
 void load_subscribe_file(char *path)
@@ -256,7 +245,7 @@ void *publisher_routine(void *arg)
         pthread_cond_wait(&p->cond, &p->mutex);
         pthread_mutex_unlock(&p->mutex);
 
-#ifndef DEBUG
+
         char buf[256];
         int ret = modbus_read(p->function_code, p->start_address, p->register_count, buf);
         if (p->publish_varied == 0 || p->last_cnt == 0 || p->last_cnt != ret || memcmp(p->last, buf, ret) != 0)
@@ -275,19 +264,11 @@ void *publisher_routine(void *arg)
             msg->signal_id = p->signal_id;
             memcpy(msg->payload, buf, ret);
             mosquitto_publish(mosq, 0, p->publish_topic, size, msg, p->publish_qos, false);
+          
             p->last_cnt = ret;
             memcpy(p->last, buf, ret);
         }
-#endif
-
-#ifdef DEBUG
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        printf("%lu.%.6lu", tv.tv_sec, tv.tv_usec);
-        printf("zzzz %s\n", p->publish_topic);
-#endif
     }
-
     return 0;
 }
 

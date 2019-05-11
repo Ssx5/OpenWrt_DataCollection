@@ -63,16 +63,12 @@ void mqtt_init(struct mosquitto **mosq)
             fprintf(stderr, "mosquitto_tls_opts_set() error: %d\n", ret);
             exit(0);
         }
-#ifdef DEBUG
-        printf("SSL/TLS set done!\n");
-#endif
     }
     //mosquitto_message_callback_set(*mosq, message_callback);
     //mosquitto_connect_callback_set(*mosq, connect_callback);
     //mosquitto_subscribe_callback_set(*mosq, subscribe_callback);
-#ifdef DEBUG
     //mosquitto_publish_callback_set(*mosq, publish_callback);
-#endif
+
     ret = mosquitto_connect(*mosq, global_config.mqtt.mqtt_addr, global_config.mqtt.mqtt_port, 600);
     if (ret != MOSQ_ERR_SUCCESS)
     {
